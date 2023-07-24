@@ -1,0 +1,56 @@
+#!/bin/bash
+#Prerequites T2 MEDIUM UBUNTU 20.00
+
+# Update packages list
+sudo apt-get update
+
+# Install necessary packages
+sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+
+# Add Google's GPG key
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+# Add Kubernetes to the APT sources
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+
+# Update packages list again
+sudo apt-get update
+
+# Install Docker
+sudo apt-get install -y docker.io
+
+# Start Docker and enable it to start on boot
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Install kubelet, kubeadm, and kubectl
+sudo apt-get install -y kubelet kubeadm kubectl
+
+# Prevent updates of kubelet, kubeadm, and kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+# Disable swap to allow Kubernetes to function correctly
+sudo swapoff -a
+
+# Initialize the master node
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+
+# Set up local kubeconfig
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# Apply Flannel CNI network overlay
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+# Ensure net.bridge.bridge-nf-call-iptables is set to 1
+echo "1" | sudo tee /proc/sys/net/bridge/bridge-nf-call-iptables
+
+# Make sure IP forwarding is enabled
+echo "1" | sudo tee /proc/sys/net/ipv4/ip_forward
+
+# Make the br_netfilter module load at boot
+echo "br_netfilter" | sudo tee -a /etc/modules
+
+# Make net.bridge.bridge-nf-call-iptables configuration permanent
+echo "net.bridge.bridge-nf-call-iptables=1" | sudo tee -a /etc/sysctl.conf
